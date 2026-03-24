@@ -2,155 +2,275 @@ import { createServerSupabaseClient } from '@/lib/supabase-server';
 import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faTruck,
-  faCircleCheck,
-  faTriangleExclamation,
-  faCircleXmark,
-  faCircleQuestion,
-  faArrowRight,
+  faTruck, faCheckCircle, faExclamationTriangle, faTimesCircle,
+  faCircleQuestion, faArrowRight, faPlus, faTriangleExclamation,
+  faFileCircleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import { calcularSemaforo } from '@/lib/semaforo';
 
-async function getStats() {
+const DOC_LABEL = { soat: 'SOAT', citv: 'CITV', propiedad: 'Propiedad', seguro: 'Seguro' };
+
+const ESTADO_CONFIG = {
+  operativo:         { label: 'Operativo',          dot: 'bg-green-500',  bar: 'bg-green-500' },
+  parcialmente:      { label: 'Parcialmente',        dot: 'bg-yellow-500', bar: 'bg-yellow-500' },
+  fuera_de_servicio: { label: 'Fuera de servicio',   dot: 'bg-red-500',    bar: 'bg-red-500' },
+};
+
+async function getDashboardData() {
   const supabase = await createServerSupabaseClient();
 
-  const { data: vehiculos } = await supabase
+  const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, estado, vehicle_documents(tipo_documento, fecha_vencimiento)');
+    .select('id, placa, tipo, marca, modelo, estado, created_at, vehicle_documents(tipo_documento, fecha_vencimiento, vigente)')
+    .order('created_at', { ascending: false });
 
-  if (!vehiculos) return { total: 0, operativas: 0, criticas: 0, alerta: 0, sinDatos: 0 };
+  if (!vehicles) return { stats: {}, alertas: [], recientes: [], estadoFlota: {} };
 
-  let criticas = 0;
-  let alerta = 0;
-  let sinDatos = 0;
-  let operativas = 0;
+  // Stats de estado operativo
+  const estadoFlota = {
+    operativo:         vehicles.filter((v) => v.estado === 'operativo').length,
+    parcialmente:      vehicles.filter((v) => v.estado === 'parcialmente').length,
+    fuera_de_servicio: vehicles.filter((v) => v.estado === 'fuera_de_servicio').length,
+  };
+  const total = vehicles.length;
 
-  for (const v of vehiculos) {
-    const docs = v.vehicle_documents || [];
-    if (docs.length === 0) { sinDatos++; continue; }
-
-    let peorEstado = 'ok';
-    const prioridad = { critical: 0, alert: 1, nodata: 2, ok: 3 };
-
-    for (const doc of docs) {
-      const { estado } = calcularSemaforo(doc.fecha_vencimiento);
-      if (prioridad[estado] < prioridad[peorEstado]) peorEstado = estado;
+  // Alertas documentales (vencidos o proximos a vencer en 45 dias)
+  const alertas = [];
+  for (const v of vehicles) {
+    for (const doc of v.vehicle_documents || []) {
+      if (!doc.fecha_vencimiento) continue;
+      const { estado, diasRestantes } = calcularSemaforo(doc.fecha_vencimiento);
+      if (estado === 'critical' || estado === 'alert') {
+        alertas.push({
+          placa: v.placa,
+          tipo_documento: doc.tipo_documento,
+          fecha_vencimiento: doc.fecha_vencimiento,
+          estado,
+          diasRestantes,
+        });
+      }
     }
+  }
+  alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
 
-    if (peorEstado === 'critical') criticas++;
-    else if (peorEstado === 'alert') alerta++;
-    else if (peorEstado === 'nodata') sinDatos++;
-    else operativas++;
+  // Stats globales docs
+  let docsCriticos = 0, docsAlerta = 0;
+  for (const a of alertas) {
+    if (a.estado === 'critical') docsCriticos++;
+    else docsAlerta++;
   }
 
-  return { total: vehiculos.length, operativas, criticas, alerta, sinDatos };
+  return {
+    stats: { total, docsCriticos, docsAlerta },
+    alertas: alertas.slice(0, 8),
+    recientes: vehicles.slice(0, 5),
+    estadoFlota,
+  };
 }
 
 export default async function DashboardPage() {
-  const stats = await getStats();
-
-  const cards = [
-    {
-      label: 'Total unidades',
-      value: stats.total,
-      icon: faTruck,
-      color: 'var(--color-primary)',
-      bg: 'bg-[var(--color-primary)]/10',
-    },
-    {
-      label: 'Documentos vigentes',
-      value: stats.operativas,
-      icon: faCircleCheck,
-      color: 'var(--color-status-ok)',
-      bg: 'bg-green-50',
-    },
-    {
-      label: 'En alerta',
-      value: stats.alerta,
-      icon: faTriangleExclamation,
-      color: 'var(--color-status-alert)',
-      bg: 'bg-amber-50',
-    },
-    {
-      label: 'Criticos / Vencidos',
-      value: stats.criticas,
-      icon: faCircleXmark,
-      color: 'var(--color-status-critical)',
-      bg: 'bg-red-50',
-    },
-    {
-      label: 'Sin documentos',
-      value: stats.sinDatos,
-      icon: faCircleQuestion,
-      color: 'var(--color-status-nodata)',
-      bg: 'bg-slate-100',
-    },
-  ];
+  const { stats, alertas, recientes, estadoFlota } = await getDashboardData();
+  const total = stats.total || 0;
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="mb-6">
+    <div className="max-w-5xl mx-auto flex flex-col gap-6">
+
+      <div>
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Dashboard</h1>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-          Resumen del estado de la flota vehicular
+        <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
+          Estado general de la flota — Juliaca
         </p>
       </div>
 
-      {/* Cards de estadisticas */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className={`${card.bg} rounded-xl p-4 flex flex-col gap-3`}
-          >
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${card.color}20` }}
-            >
-              <FontAwesomeIcon
-                icon={card.icon}
-                className="w-4 h-4"
-                style={{ color: card.color }}
-              />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[var(--color-text)]">{card.value}</p>
-              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 leading-tight">
-                {card.label}
-              </p>
-            </div>
-          </div>
-        ))}
+      {/* Tarjetas principales */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard
+          label="Total unidades"
+          value={total}
+          icon={faTruck}
+          iconColor="text-[var(--color-primary)]"
+          bg="bg-[var(--color-primary)]/8"
+        />
+        <StatCard
+          label="Operativos"
+          value={estadoFlota.operativo || 0}
+          icon={faCheckCircle}
+          iconColor="text-green-600"
+          bg="bg-green-50"
+        />
+        <StatCard
+          label="Docs en alerta"
+          value={stats.docsAlerta || 0}
+          icon={faExclamationTriangle}
+          iconColor="text-yellow-600"
+          bg="bg-yellow-50"
+        />
+        <StatCard
+          label="Docs criticos"
+          value={stats.docsCriticos || 0}
+          icon={faTimesCircle}
+          iconColor="text-red-600"
+          bg="bg-red-50"
+        />
       </div>
 
-      {/* Acceso rapido */}
-      <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-6">
-        <h2 className="text-base font-semibold text-[var(--color-text)] mb-4">
-          Acceso rapido
-        </h2>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Link
-            href="/flota"
-            className="flex items-center justify-between px-4 py-3 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-alt)] transition-colors group"
-          >
-            <div className="flex items-center gap-3">
-              <FontAwesomeIcon icon={faTruck} className="w-4 h-4 text-[var(--color-primary)]" />
-              <span className="text-sm font-medium text-[var(--color-text)]">Ver toda la flota</span>
-            </div>
-            <FontAwesomeIcon
-              icon={faArrowRight}
-              className="w-3.5 h-3.5 text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)] transition-colors"
-            />
-          </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-          <Link
-            href="/flota/nueva"
-            className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] transition-colors group"
-          >
-            <span className="text-sm font-medium text-white">Registrar nueva unidad</span>
-            <FontAwesomeIcon icon={faArrowRight} className="w-3.5 h-3.5 text-white/70 group-hover:text-white transition-colors" />
-          </Link>
+        {/* Estado operativo de flota */}
+        <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-[var(--color-text)]">Estado operativo</p>
+            <Link href="/flota" className="text-xs text-[var(--color-primary)] hover:underline flex items-center gap-1">
+              Ver flota <FontAwesomeIcon icon={faArrowRight} className="w-3 h-3" />
+            </Link>
+          </div>
+          {total === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">Sin unidades registradas</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {Object.entries(ESTADO_CONFIG).map(([key, cfg]) => {
+                const count = estadoFlota[key] || 0;
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div key={key} className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                        <span className="text-[var(--color-text-secondary)]">{cfg.label}</span>
+                      </div>
+                      <span className="font-semibold text-[var(--color-text)]">{count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[var(--color-border)]">
+                      <div
+                        className={`h-2 rounded-full transition-all ${cfg.bar}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {/* Ultimas unidades registradas */}
+        <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-[var(--color-text)]">Ultimas unidades</p>
+            <Link href="/flota/nueva" className="text-xs text-[var(--color-primary)] hover:underline flex items-center gap-1">
+              <FontAwesomeIcon icon={faPlus} className="w-3 h-3" /> Nueva
+            </Link>
+          </div>
+          {recientes.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">Sin unidades registradas</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-[var(--color-border)]">
+              {recientes.map((v) => {
+                const cfg = ESTADO_CONFIG[v.estado] || ESTADO_CONFIG.operativo;
+                return (
+                  <Link
+                    key={v.id}
+                    href={`/flota/${v.placa}`}
+                    className="flex items-center justify-between py-2.5 hover:opacity-80 transition-opacity"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                      <div>
+                        <p className="text-sm font-mono font-bold text-[var(--color-text)]">{v.placa}</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {[v.marca, v.modelo].filter(Boolean).join(' ') || v.tipo}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      {new Date(v.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Alertas documentales */}
+      <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <FontAwesomeIcon icon={faFileCircleExclamation} className="w-4 h-4 text-[var(--color-status-critical)]" />
+          <p className="text-sm font-semibold text-[var(--color-text)]">Alertas documentales</p>
+          {alertas.length > 0 && (
+            <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+              {alertas.length} pendiente{alertas.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {alertas.length === 0 ? (
+          <div className="flex items-center gap-2 py-4 justify-center text-[var(--color-text-muted)]">
+            <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 text-green-500" />
+            <p className="text-sm">Todos los documentos estan al dia</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)]">
+                  <th className="text-left pb-2 font-semibold text-[var(--color-text-secondary)] text-xs uppercase tracking-wide">Placa</th>
+                  <th className="text-left pb-2 font-semibold text-[var(--color-text-secondary)] text-xs uppercase tracking-wide">Documento</th>
+                  <th className="text-left pb-2 font-semibold text-[var(--color-text-secondary)] text-xs uppercase tracking-wide">Vencimiento</th>
+                  <th className="text-left pb-2 font-semibold text-[var(--color-text-secondary)] text-xs uppercase tracking-wide">Estado</th>
+                  <th className="pb-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {alertas.map((a, i) => (
+                  <tr key={i} className="hover:bg-[var(--color-surface-alt)] transition-colors">
+                    <td className="py-2.5 pr-4">
+                      <span className="font-mono font-bold text-[var(--color-text)]">{a.placa}</span>
+                    </td>
+                    <td className="py-2.5 pr-4 text-[var(--color-text-secondary)]">
+                      {DOC_LABEL[a.tipo_documento] || a.tipo_documento}
+                    </td>
+                    <td className="py-2.5 pr-4 text-[var(--color-text-secondary)]">
+                      {new Date(a.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-PE')}
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {a.estado === 'critical' ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                          <FontAwesomeIcon icon={faTriangleExclamation} className="w-3 h-3" />
+                          {a.diasRestantes < 0 ? 'Vencido' : `${a.diasRestantes}d`}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-3 h-3" />
+                          {a.diasRestantes}d
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <Link href={`/flota/${a.placa}`} className="text-xs text-[var(--color-primary)] hover:underline">
+                        Ver
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, iconColor, bg }) {
+  return (
+    <div className={`${bg} rounded-xl p-4 flex flex-col gap-3 border border-transparent`}>
+      <FontAwesomeIcon icon={icon} className={`w-5 h-5 ${iconColor}`} />
+      <div>
+        <p className="text-2xl font-bold text-[var(--color-text)]">{value}</p>
+        <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 leading-tight">{label}</p>
       </div>
     </div>
   );
