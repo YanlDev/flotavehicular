@@ -6,13 +6,15 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTachometerAlt,
   faTruck,
-  faPlus,
+  faUsers,
   faTimes,
+  faPlus,
 } from '@fortawesome/free-solid-svg-icons';
 
 const NAV_ITEMS = [
-  { href: '/',       icon: faTachometerAlt, label: 'Dashboard' },
-  { href: '/flota',  icon: faTruck,         label: 'Flota vehicular' },
+  { href: '/',            icon: faTachometerAlt, label: 'Dashboard' },
+  { href: '/flota',       icon: faTruck,         label: 'Flota vehicular' },
+  { href: '/conductores', icon: faUsers,         label: 'Conductores' },
 ];
 
 export default function Sidebar({ open, onClose }) {
