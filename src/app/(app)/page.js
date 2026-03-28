@@ -9,6 +9,15 @@ import {
 import { calcularSemaforo } from '@/lib/semaforo';
 
 const DOC_LABEL = { soat: 'SOAT', citv: 'CITV', propiedad: 'Propiedad', seguro: 'Seguro' };
+const DOCS_REQUERIDOS = ['soat', 'citv', 'propiedad'];
+
+function docsPendientes(vehicleDocuments) {
+  const docs = vehicleDocuments || [];
+  return DOCS_REQUERIDOS.filter((tipo) => {
+    const doc = docs.find((d) => d.tipo_documento === tipo);
+    return !doc || !doc.vigente || doc.vigente === '' || doc.vigente === 'no';
+  });
+}
 
 const ESTADO_CONFIG = {
   operativo:         { label: 'Operativo',          dot: 'bg-green-500',  bar: 'bg-green-500' },
@@ -167,6 +176,7 @@ export default async function DashboardPage() {
             <div className="flex flex-col divide-y divide-[var(--color-border)]">
               {recientes.map((v) => {
                 const cfg = ESTADO_CONFIG[v.estado] || ESTADO_CONFIG.operativo;
+                const pendientes = docsPendientes(v.vehicle_documents);
                 return (
                   <Link
                     key={v.id}
@@ -182,9 +192,26 @@ export default async function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs text-[var(--color-text-muted)]">
-                      {new Date(v.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {pendientes.length > 0 && (
+                        <div className="relative group/docs">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 cursor-default">
+                            Pendiente
+                          </span>
+                          <div className="absolute right-0 bottom-full mb-1.5 z-20 invisible group-hover/docs:visible pointer-events-none">
+                            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg p-2.5 min-w-max">
+                              <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Docs. pendientes:</p>
+                              {pendientes.map((tipo) => (
+                                <p key={tipo} className="text-xs text-[var(--color-text)]">· {DOC_LABEL[tipo]}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <span className="text-xs text-[var(--color-text-muted)]">
+                        {new Date(v.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                      </span>
+                    </div>
                   </Link>
                 );
               })}

@@ -14,12 +14,10 @@ const STEPS = ['Datos del vehiculo', 'Documentacion', 'Equipamiento', 'Fotografi
 // ─── Estado inicial ────────────────────────────────────────────────
 const INITIAL_VEHICLE = {
   placa: '', tipo: '', marca: '', modelo: '', anio: '', color: '',
-  chasis: '', tipo_motor: '', transmision: '', traccion: '',
+  chasis: '', motor: '', tipo_motor: '', transmision: '', traccion: '',
   propietario: '', gps: false,
   km_actuales: '', zona: 'Juliaca', estado: 'operativo',
   problema_activo: '', conductor: '', conductor_tel: '',
-  km_ultimo_mant: '', fecha_ultimo_mant: '', tipo_servicio_mant: '',
-  taller_mant: '', tiene_registro_factura: '',
   equipamiento: {}, danos_carroceria: {}, fugas: {},
 };
 
@@ -253,7 +251,7 @@ function Step0({ vehicle, setV, errors }) {
             <Input value={vehicle.color} onChange={(e) => setV('color', e.target.value)} placeholder="Ej: Blanco" />
           </FormField>
           <FormField label="N° de motor">
-            <Input value={vehicle.tipo_motor} onChange={(e) => setV('tipo_motor', e.target.value)} placeholder="N° de motor grabado" />
+            <Input value={vehicle.motor} onChange={(e) => setV('motor', e.target.value)} placeholder="N° de motor grabado" />
           </FormField>
           <FormField label="N° de chasis / serie">
             <Input value={vehicle.chasis} onChange={(e) => setV('chasis', e.target.value)} placeholder="N° de chasis o serie" />
@@ -286,13 +284,8 @@ function Step0({ vehicle, setV, errors }) {
               <option value="4x2">4x2</option>
             </Select>
           </FormField>
-          <FormField label="Propietario">
-            <Select value={vehicle.propietario} onChange={(e) => setV('propietario', e.target.value)}>
-              <option value="">Seleccionar...</option>
-              <option value="empresa">Empresa (SELCOSI)</option>
-              <option value="leasing">Leasing</option>
-              <option value="tercero">Tercero / otro</option>
-            </Select>
+          <FormField label="RUC Asociado">
+            <Input value={vehicle.propietario} onChange={(e) => setV('propietario', e.target.value)} placeholder="Ej: 20123456789" maxLength={11} />
           </FormField>
           <FormField label="GPS instalado">
             <Select value={vehicle.gps ? 'si' : 'no'} onChange={(e) => setV('gps', e.target.value === 'si')}>
@@ -332,31 +325,6 @@ function Step0({ vehicle, setV, errors }) {
         </FormField>
       </Section>
 
-      <Section title="D. Historial de mantenimiento">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Fecha del ultimo mantenimiento">
-            <Input type="date" value={vehicle.fecha_ultimo_mant} onChange={(e) => setV('fecha_ultimo_mant', e.target.value)} />
-          </FormField>
-          <FormField label="KM en ultimo mantenimiento">
-            <Input type="number" value={vehicle.km_ultimo_mant} onChange={(e) => setV('km_ultimo_mant', e.target.value)} placeholder="Ej: 40000" min={0} />
-          </FormField>
-          <FormField label="Tipo de servicio realizado">
-            <Input value={vehicle.tipo_servicio_mant} onChange={(e) => setV('tipo_servicio_mant', e.target.value)} placeholder="Ej: Cambio de aceite y filtros" />
-          </FormField>
-          <FormField label="Taller donde se realizo">
-            <Input value={vehicle.taller_mant} onChange={(e) => setV('taller_mant', e.target.value)} placeholder="Nombre del taller" />
-          </FormField>
-          <FormField label="Tiene registro / factura?">
-            <Select value={vehicle.tiene_registro_factura} onChange={(e) => setV('tiene_registro_factura', e.target.value)}>
-              <option value="">Seleccionar...</option>
-              <option value="si">Si</option>
-              <option value="no">No</option>
-              <option value="parcial">Parcial</option>
-            </Select>
-          </FormField>
-        </div>
-      </Section>
-
     </div>
   );
 }
@@ -387,7 +355,6 @@ function Step1({ docs, setDoc, vehicle }) {
             <Input type="date" value={docs.soat.fecha_vencimiento} onChange={(e) => setDoc('soat', 'fecha_vencimiento', e.target.value)} />
           </FormField>
         </div>
-        <DocDigitalizado hasDate={!!docs.soat.fecha_vencimiento} hasNumero={!!docs.soat.numero} />
       </DocBlock>
 
       {/* CITV */}
@@ -418,7 +385,6 @@ function Step1({ docs, setDoc, vehicle }) {
             <Input type="date" value={docs.citv.fecha_vencimiento} onChange={(e) => setDoc('citv', 'fecha_vencimiento', e.target.value)} />
           </FormField>
         </div>
-        <DocDigitalizado hasDate={!!docs.citv.fecha_vencimiento} hasNumero={!!docs.citv.numero} />
       </DocBlock>
 
       {/* Tarjeta de Propiedad */}
@@ -448,7 +414,6 @@ function Step1({ docs, setDoc, vehicle }) {
             <Input value={docs.propiedad.numero} onChange={(e) => setDoc('propiedad', 'numero', e.target.value)} placeholder="Numero de documento" />
           </FormField>
         </div>
-        <DocDigitalizado hasDate={false} hasNumero={!!docs.propiedad.numero} />
       </DocBlock>
 
       {/* Seguro Vehicular */}
@@ -477,9 +442,6 @@ function Step1({ docs, setDoc, vehicle }) {
             </>
           )}
         </div>
-        {docs.seguro.vigente !== 'no_aplica' && docs.seguro.vigente !== 'no' && (
-          <DocDigitalizado hasDate={!!docs.seguro.fecha_vencimiento} hasNumero={!!docs.seguro.numero} />
-        )}
       </DocBlock>
 
     </div>
@@ -625,22 +587,6 @@ function DocBlock({ title, children }) {
     <div className="border border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-4">
       <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
       {children}
-    </div>
-  );
-}
-
-function DocDigitalizado({ hasDate, hasNumero }) {
-  const digitalizado = hasDate || hasNumero;
-  return (
-    <div className="flex items-center gap-2 pt-1">
-      <span className="text-xs text-[var(--color-text-muted)]">Documento digitalizado:</span>
-      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-        digitalizado
-          ? 'bg-green-100 text-green-700'
-          : 'bg-yellow-100 text-yellow-700'
-      }`}>
-        {digitalizado ? 'Si' : 'Pendiente'}
-      </span>
     </div>
   );
 }

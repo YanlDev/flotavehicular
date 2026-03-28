@@ -187,11 +187,12 @@ export default function FichaVehiculoPage() {
           <Field label="Modelo"           value={vehicle.modelo} />
           <Field label="Año"              value={vehicle.anio} />
           <Field label="Color"            value={vehicle.color} />
-          <Field label="N° de motor"      value={vehicle.tipo_motor} />
+          <Field label="N° de motor"      value={vehicle.motor} />
+          <Field label="Tipo de motor"    value={vehicle.tipo_motor} />
           <Field label="N° de chasis"     value={vehicle.chasis} />
           <Field label="Transmision"      value={vehicle.transmision} />
           <Field label="Traccion"         value={vehicle.traccion} />
-          <Field label="Propietario"      value={vehicle.propietario} />
+          <Field label="RUC Asociado"      value={vehicle.propietario} />
           <Field label="GPS"              value={vehicle.gps ? 'Si' : 'No'} />
         </Grid>
       </Card>
@@ -211,19 +212,6 @@ export default function FichaVehiculoPage() {
           </div>
         )}
       </Card>
-
-      {/* D. Ultimo mantenimiento */}
-      {(vehicle.fecha_ultimo_mant || vehicle.km_ultimo_mant || vehicle.tipo_servicio_mant) && (
-        <Card title="Ultimo mantenimiento">
-          <Grid>
-            <Field label="Fecha"          value={vehicle.fecha_ultimo_mant ? new Date(vehicle.fecha_ultimo_mant + 'T00:00:00').toLocaleDateString('es-PE') : null} />
-            <Field label="KM"             value={vehicle.km_ultimo_mant ? vehicle.km_ultimo_mant.toLocaleString('es-PE') + ' km' : null} />
-            <Field label="Servicio"       value={vehicle.tipo_servicio_mant} />
-            <Field label="Taller"         value={vehicle.taller_mant} />
-            <Field label="Registro/Factura" value={vehicle.tiene_registro_factura} />
-          </Grid>
-        </Card>
-      )}
 
       {/* Documentacion */}
       <Card title="Documentacion legal">
@@ -257,9 +245,6 @@ export default function FichaVehiculoPage() {
                   ) : (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Sin registro</span>
                   )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${doc?.numero || doc?.fecha_vencimiento ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {doc?.numero || doc?.fecha_vencimiento ? 'Digitalizado' : 'Pendiente'}
-                  </span>
                 </div>
               </div>
             );

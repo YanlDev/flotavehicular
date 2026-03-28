@@ -46,6 +46,7 @@ export default function EditarVehiculoPage() {
           modelo:             v.modelo || '',
           anio:               v.anio || '',
           color:              v.color || '',
+          motor:              v.motor || '',
           tipo_motor:         v.tipo_motor || '',
           chasis:             v.chasis || '',
           transmision:        v.transmision || '',
@@ -58,11 +59,6 @@ export default function EditarVehiculoPage() {
           conductor:          v.conductor || '',
           conductor_tel:      v.conductor_tel || '',
           problema_activo:    v.problema_activo || '',
-          km_ultimo_mant:     v.km_ultimo_mant || '',
-          fecha_ultimo_mant:  v.fecha_ultimo_mant || '',
-          tipo_servicio_mant: v.tipo_servicio_mant || '',
-          taller_mant:        v.taller_mant || '',
-          tiene_registro_factura: v.tiene_registro_factura || '',
           equipamiento:       v.equipamiento || {},
           danos_carroceria:   v.danos_carroceria || {},
           fugas:              v.fugas || {},
@@ -192,7 +188,7 @@ export default function EditarVehiculoPage() {
           <FormField label="Modelo"><Input value={form.modelo} onChange={(e) => setF('modelo', e.target.value)} /></FormField>
           <FormField label="Año"><Input type="number" value={form.anio} onChange={(e) => setF('anio', e.target.value)} min={1990} max={2030} /></FormField>
           <FormField label="Color"><Input value={form.color} onChange={(e) => setF('color', e.target.value)} /></FormField>
-          <FormField label="N° de motor"><Input value={form.tipo_motor} onChange={(e) => setF('tipo_motor', e.target.value)} /></FormField>
+          <FormField label="N° de motor"><Input value={form.motor} onChange={(e) => setF('motor', e.target.value)} /></FormField>
           <FormField label="N° de chasis"><Input value={form.chasis} onChange={(e) => setF('chasis', e.target.value)} /></FormField>
         </div>
       </Section>
@@ -223,13 +219,8 @@ export default function EditarVehiculoPage() {
               <option value="4x2">4x2</option>
             </Select>
           </FormField>
-          <FormField label="Propietario">
-            <Select value={form.propietario} onChange={(e) => setF('propietario', e.target.value)}>
-              <option value="">Seleccionar...</option>
-              <option value="empresa">Empresa (SELCOSI)</option>
-              <option value="leasing">Leasing</option>
-              <option value="tercero">Tercero / otro</option>
-            </Select>
+          <FormField label="RUC Asociado">
+            <Input value={form.propietario} onChange={(e) => setF('propietario', e.target.value)} placeholder="Ej: 20123456789" maxLength={11} />
           </FormField>
           <FormField label="GPS">
             <Select value={form.gps ? 'si' : 'no'} onChange={(e) => setF('gps', e.target.value === 'si')}>
@@ -268,32 +259,6 @@ export default function EditarVehiculoPage() {
         <FormField label="Problema activo">
           <Textarea value={form.problema_activo} onChange={(e) => setF('problema_activo', e.target.value)} />
         </FormField>
-      </Section>
-
-      {/* D. Mantenimiento */}
-      <Section title="D. Historial de mantenimiento">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Fecha ultimo mantenimiento">
-            <Input type="date" value={form.fecha_ultimo_mant} onChange={(e) => setF('fecha_ultimo_mant', e.target.value)} />
-          </FormField>
-          <FormField label="KM en ultimo mantenimiento">
-            <Input type="number" value={form.km_ultimo_mant} onChange={(e) => setF('km_ultimo_mant', e.target.value)} min={0} />
-          </FormField>
-          <FormField label="Tipo de servicio">
-            <Input value={form.tipo_servicio_mant} onChange={(e) => setF('tipo_servicio_mant', e.target.value)} />
-          </FormField>
-          <FormField label="Taller">
-            <Input value={form.taller_mant} onChange={(e) => setF('taller_mant', e.target.value)} />
-          </FormField>
-          <FormField label="Tiene registro/factura">
-            <Select value={form.tiene_registro_factura} onChange={(e) => setF('tiene_registro_factura', e.target.value)}>
-              <option value="">Seleccionar...</option>
-              <option value="si">Si</option>
-              <option value="no">No</option>
-              <option value="parcial">Parcial</option>
-            </Select>
-          </FormField>
-        </div>
       </Section>
 
       {/* Documentacion */}
