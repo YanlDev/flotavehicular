@@ -8,7 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { calcularSemaforo } from '@/lib/semaforo';
 
-const DOC_LABEL = { soat: 'SOAT', citv: 'CITV', propiedad: 'Propiedad', seguro: 'Seguro' };
+const DOC_LABEL = { soat: 'SOAT', citv: 'CITV', propiedad: 'Propiedad', seguro: 'Seguro', sat: 'SAT', sutran: 'SUTRAN' };
 const DOCS_REQUERIDOS = ['soat', 'citv', 'propiedad'];
 
 function docsPendientes(vehicleDocuments) {
@@ -44,10 +44,13 @@ async function getDashboardData() {
   const total = vehicles.length;
 
   // Alertas documentales (vencidos o proximos a vencer en 45 dias)
+  // SAT y SUTRAN no tienen fecha de vencimiento real — se excluyen de alertas de caducidad
+  const DOCS_SIN_VENCIMIENTO = new Set(['sat', 'sutran']);
   const alertas = [];
   for (const v of vehicles) {
     for (const doc of v.vehicle_documents || []) {
       if (!doc.fecha_vencimiento) continue;
+      if (DOCS_SIN_VENCIMIENTO.has(doc.tipo_documento)) continue;
       const { estado, diasRestantes } = calcularSemaforo(doc.fecha_vencimiento);
       if (estado === 'critical' || estado === 'alert') {
         alertas.push({

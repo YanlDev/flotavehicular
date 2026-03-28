@@ -30,7 +30,7 @@ export async function POST(request) {
 
   // Strings vacios → null para campos opcionales
   const toStr = (v) => (v === '' ? null : v);
-  ['chasis','tipo_motor','transmision','traccion','propietario','color','marca',
+  ['motor','chasis','tipo_motor','transmision','traccion','propietario','color','marca',
    'modelo','taller_mant','tipo_servicio_mant','tiene_registro_factura',
    'fecha_ultimo_mant','conductor','conductor_tel','problema_activo'].forEach((k) => {
     if (k in vehicleData) vehicleData[k] = toStr(vehicleData[k]);

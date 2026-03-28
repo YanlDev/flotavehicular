@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faSpinner, faCheck } from '@fortawesome/free-solid-svg-icons';
+import {
+  faChevronLeft, faSpinner, faCheck, faFilePdf,
+  faUpload, faTrash, faEye,
+} from '@fortawesome/free-solid-svg-icons';
 import FormField, { Input, Select, Textarea } from '@/components/ui/FormField';
 
 const EQUIP_ITEMS = [
@@ -28,9 +31,10 @@ export default function EditarVehiculoPage() {
   const [vehicle, setVehicle] = useState(null);
   const [form, setForm]       = useState(null);
   const [docs, setDocs]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [errors, setErrors]   = useState({});
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [errors, setErrors]         = useState({});
+  const [pdfUploading, setPdfUploading] = useState(null);
 
   useEffect(() => {
     fetch('/api/vehicles')
@@ -67,6 +71,7 @@ export default function EditarVehiculoPage() {
         const docsMap = {};
         for (const d of v.vehicle_documents || []) {
           docsMap[d.tipo_documento] = {
+            id:              d.id,
             tipo_documento:  d.tipo_documento,
             vigente:         d.vigente || '',
             numero:          d.numero || '',
@@ -75,13 +80,17 @@ export default function EditarVehiculoPage() {
             fecha_vencimiento: d.fecha_vencimiento || '',
             frecuencia_citv: d.frecuencia_citv || '',
             placa_coincide:  d.placa_coincide ?? null,
+            file_url:        d.file_url || null,
+            file_key:        d.file_key || null,
           };
         }
         setDocs({
-          soat:      docsMap.soat      || { tipo_documento: 'soat',      vigente: '', numero: '', aseguradora: '', fecha_vencimiento: '' },
-          citv:      docsMap.citv      || { tipo_documento: 'citv',      vigente: '', numero: '', centro_citv: '', fecha_vencimiento: '', frecuencia_citv: '' },
-          seguro:    docsMap.seguro    || { tipo_documento: 'seguro',    vigente: 'no_aplica', numero: '', aseguradora: '', fecha_vencimiento: '' },
-          propiedad: docsMap.propiedad || { tipo_documento: 'propiedad', vigente: '', numero: '', aseguradora: '', placa_coincide: null },
+          soat:      docsMap.soat      || { tipo_documento: 'soat',      vigente: '', numero: '', aseguradora: '', fecha_vencimiento: '', file_url: null, file_key: null },
+          citv:      docsMap.citv      || { tipo_documento: 'citv',      vigente: '', numero: '', centro_citv: '', fecha_vencimiento: '', frecuencia_citv: '', file_url: null, file_key: null },
+          seguro:    docsMap.seguro    || { tipo_documento: 'seguro',    vigente: 'no_aplica', numero: '', aseguradora: '', fecha_vencimiento: '', file_url: null, file_key: null },
+          propiedad: docsMap.propiedad || { tipo_documento: 'propiedad', vigente: '', numero: '', aseguradora: '', placa_coincide: null, file_url: null, file_key: null },
+          sat:       docsMap.sat       || { tipo_documento: 'sat',       vigente: '', numero: '', fecha_vencimiento: '', file_url: null, file_key: null },
+          sutran:    docsMap.sutran    || { tipo_documento: 'sutran',    vigente: '', numero: '', fecha_vencimiento: '', file_url: null, file_key: null },
         });
         setLoading(false);
       });
@@ -102,6 +111,30 @@ export default function EditarVehiculoPage() {
   }
   function setLeak(tipo, value) {
     setForm((p) => ({ ...p, fugas: { ...p.fugas, [tipo]: value } }));
+  }
+
+  async function handlePdfUpload(tipo_documento, file) {
+    if (!file || !vehicle) return;
+    setPdfUploading(tipo_documento);
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('vehicle_id', vehicle.id);
+    fd.append('tipo_documento', tipo_documento);
+    const res = await fetch('/api/documents', { method: 'POST', body: fd });
+    if (res.ok) {
+      const updated = await res.json();
+      setDocs((p) => ({ ...p, [tipo_documento]: { ...p[tipo_documento], id: updated.id, file_url: updated.file_url, file_key: updated.file_key } }));
+    }
+    setPdfUploading(null);
+  }
+
+  async function handlePdfDelete(tipo_documento) {
+    const docId = docs[tipo_documento]?.id;
+    if (!docId) return;
+    const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setDocs((p) => ({ ...p, [tipo_documento]: { ...p[tipo_documento], file_url: null, file_key: null } }));
+    }
   }
 
   async function handleSave() {
@@ -264,10 +297,12 @@ export default function EditarVehiculoPage() {
       {/* Documentacion */}
       <Section title="Documentacion legal">
         {[
-          { key: 'soat',      title: 'SOAT',                    showAseg: true,  showCitv: false, showFecha: true },
-          { key: 'citv',      title: 'CITV — Revision Tecnica', showAseg: false, showCitv: true,  showFecha: true },
-          { key: 'seguro',    title: 'Seguro vehicular',        showAseg: true,  showCitv: false, showFecha: true },
-          { key: 'propiedad', title: 'Tarjeta de propiedad',    showAseg: true,  showCitv: false, showFecha: false },
+          { key: 'soat',      title: 'SOAT',                          showAseg: true,  showCitv: false, showFecha: true  },
+          { key: 'citv',      title: 'CITV — Revision Tecnica',       showAseg: false, showCitv: true,  showFecha: true  },
+          { key: 'seguro',    title: 'Seguro vehicular',               showAseg: true,  showCitv: false, showFecha: true  },
+          { key: 'propiedad', title: 'Tarjeta de propiedad',           showAseg: true,  showCitv: false, showFecha: false },
+          { key: 'sat',       title: 'Record de infracciones — SAT',   showAseg: false, showCitv: false, showFecha: false },
+          { key: 'sutran',    title: 'Record de infracciones — SUTRAN',showAseg: false, showCitv: false, showFecha: false },
         ].map(({ key, title, showAseg, showCitv, showFecha }) => (
           <div key={key} className="border border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-3 mb-3">
             <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
@@ -275,12 +310,26 @@ export default function EditarVehiculoPage() {
               <FormField label="Estado">
                 <Select value={docs[key].vigente} onChange={(e) => setDoc(key, 'vigente', e.target.value)}>
                   <option value="">Seleccionar...</option>
-                  <option value="si">Si — Vigente</option>
-                  <option value="no">No</option>
-                  <option value="vencido">Vencido</option>
-                  {key === 'seguro' && <option value="no_aplica">No aplica</option>}
+                  {key === 'sat' || key === 'sutran' ? (
+                    <>
+                      <option value="si">Sin infracciones / deudas</option>
+                      <option value="no">Con infracciones / deudas</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="si">Si — Vigente</option>
+                      <option value="no">No</option>
+                      <option value="vencido">Vencido</option>
+                      {key === 'seguro' && <option value="no_aplica">No aplica</option>}
+                    </>
+                  )}
                 </Select>
               </FormField>
+              {(key === 'sat' || key === 'sutran') && (
+                <FormField label="Fecha del reporte">
+                  <Input type="date" value={docs[key].fecha_vencimiento} onChange={(e) => setDoc(key, 'fecha_vencimiento', e.target.value)} />
+                </FormField>
+              )}
               {showAseg && (
                 <FormField label={key === 'propiedad' ? 'Registrada a nombre de' : 'Aseguradora'}>
                   <Input value={docs[key].aseguradora} onChange={(e) => setDoc(key, 'aseguradora', e.target.value)} />
@@ -319,6 +368,51 @@ export default function EditarVehiculoPage() {
                     <option value="no">No — revisar</option>
                   </Select>
                 </FormField>
+              )}
+            </div>
+
+            {/* PDF adjunto */}
+            <div className="flex items-center gap-3 pt-1 border-t border-[var(--color-border)]">
+              <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4 text-red-500 shrink-0" />
+              {docs[key].file_url ? (
+                <>
+                  <span className="text-xs text-[var(--color-text-secondary)] flex-1">PDF adjunto</span>
+                  <a
+                    href={`/api/documents/${docs[key].id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline"
+                  >
+                    <FontAwesomeIcon icon={faEye} className="w-3 h-3" />
+                    Ver
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handlePdfDelete(key)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-red-600 hover:underline"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                    Quitar
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs text-[var(--color-text-muted)] flex-1">Sin PDF adjunto</span>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline cursor-pointer">
+                    {pdfUploading === key ? (
+                      <><FontAwesomeIcon icon={faSpinner} className="w-3 h-3 animate-spin" /> Subiendo...</>
+                    ) : (
+                      <><FontAwesomeIcon icon={faUpload} className="w-3 h-3" /> Subir PDF</>
+                    )}
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      disabled={pdfUploading === key || !vehicle}
+                      onChange={(e) => e.target.files[0] && handlePdfUpload(key, e.target.files[0])}
+                    />
+                  </label>
+                </>
               )}
             </div>
           </div>

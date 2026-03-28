@@ -20,14 +20,18 @@ export async function DELETE(request, { params }) {
   const supabase = await createServerSupabaseClient();
   const { id } = await params;
 
-  // Eliminar fotos de Wasabi antes de borrar el registro
-  const { data: photos } = await supabase
-    .from('vehicle_photos')
-    .select('key')
-    .eq('vehicle_id', id);
+  // Eliminar fotos y PDFs de Wasabi antes de borrar el registro
+  const [{ data: photos }, { data: docFiles }] = await Promise.all([
+    supabase.from('vehicle_photos').select('key').eq('vehicle_id', id),
+    supabase.from('vehicle_documents').select('file_key').eq('vehicle_id', id).not('file_key', 'is', null),
+  ]);
 
-  if (photos?.length) {
-    await Promise.allSettled(photos.map((p) => deleteFile(p.key)));
+  const filesToDelete = [
+    ...(photos || []).map((p) => p.key),
+    ...(docFiles || []).map((d) => d.file_key).filter(Boolean),
+  ];
+  if (filesToDelete.length) {
+    await Promise.allSettled(filesToDelete.map((key) => deleteFile(key)));
   }
 
   const { error } = await supabase.from('vehicles').delete().eq('id', id);
@@ -51,7 +55,7 @@ export async function PATCH(request, { params }) {
   vehicleData.km_actuales    = toInt(vehicleData.km_actuales);
   vehicleData.km_ultimo_mant = toInt(vehicleData.km_ultimo_mant);
 
-  ['chasis','tipo_motor','transmision','traccion','propietario','color','marca',
+  ['motor','chasis','tipo_motor','transmision','traccion','propietario','color','marca',
    'modelo','taller_mant','tipo_servicio_mant','tiene_registro_factura',
    'fecha_ultimo_mant','conductor','conductor_tel','problema_activo'].forEach((k) => {
     if (k in vehicleData) vehicleData[k] = toStr(vehicleData[k]);

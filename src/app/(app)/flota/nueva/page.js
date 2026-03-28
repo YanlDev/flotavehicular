@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChevronLeft, faChevronRight, faCheck, faSpinner, faCamera,
+  faFilePdf, faUpload, faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import StepIndicator from '@/components/ui/StepIndicator';
 import FormField, { Input, Select, Textarea } from '@/components/ui/FormField';
@@ -22,22 +23,12 @@ const INITIAL_VEHICLE = {
 };
 
 const INITIAL_DOCS = {
-  soat: {
-    tipo_documento: 'soat', vigente: '', numero: '',
-    aseguradora: '', fecha_vencimiento: '',
-  },
-  citv: {
-    tipo_documento: 'citv', vigente: '', numero: '',
-    centro_citv: '', fecha_vencimiento: '', frecuencia_citv: '',
-  },
-  seguro: {
-    tipo_documento: 'seguro', vigente: 'no_aplica', numero: '',
-    aseguradora: '', fecha_vencimiento: '',
-  },
-  propiedad: {
-    tipo_documento: 'propiedad', vigente: '', numero: '',
-    aseguradora: '', placa_coincide: null,
-  },
+  soat:     { tipo_documento: 'soat',     vigente: '', numero: '', aseguradora: '', fecha_vencimiento: '' },
+  citv:     { tipo_documento: 'citv',     vigente: '', numero: '', centro_citv: '', fecha_vencimiento: '', frecuencia_citv: '' },
+  seguro:   { tipo_documento: 'seguro',   vigente: 'no_aplica', numero: '', aseguradora: '', fecha_vencimiento: '' },
+  propiedad:{ tipo_documento: 'propiedad',vigente: '', numero: '', aseguradora: '', placa_coincide: null },
+  sat:      { tipo_documento: 'sat',      vigente: '', numero: '', fecha_vencimiento: '' },
+  sutran:   { tipo_documento: 'sutran',   vigente: '', numero: '', fecha_vencimiento: '' },
 };
 
 const EQUIP_ITEMS = [
@@ -50,102 +41,111 @@ const EQUIP_ITEMS = [
 const DAMAGE_ZONES = ['Frontal', 'Lateral derecho', 'Lateral izquierdo', 'Posterior', 'Techo'];
 
 const LEAK_TYPES = [
-  { key: 'aceite_motor', label: 'Aceite de motor' },
-  { key: 'refrigerante', label: 'Liquido refrigerante' },
-  { key: 'combustible', label: 'Combustible (gasoil)' },
-  { key: 'liquido_frenos', label: 'Liquido de frenos' },
+  { key: 'aceite_motor',  label: 'Aceite de motor' },
+  { key: 'refrigerante',  label: 'Liquido refrigerante' },
+  { key: 'combustible',   label: 'Combustible (gasoil)' },
+  { key: 'liquido_frenos',label: 'Liquido de frenos' },
 ];
 
 const PHOTO_SLOTS = [
-  { key: 'placa',      label: 'Placa del vehiculo' },
-  { key: 'odometro',  label: 'Odometro (km)' },
-  { key: 'frontal',   label: 'Estado frontal' },
-  { key: 'lateral_der', label: 'Lateral derecho' },
-  { key: 'lateral_izq', label: 'Lateral izquierdo' },
-  { key: 'posterior', label: 'Estado posterior' },
-  { key: 'cabina',    label: 'Interior cabina' },
-  { key: 'guantera',  label: 'Documentos en guantera' },
+  { key: 'placa',       label: 'Placa del vehiculo' },
+  { key: 'odometro',   label: 'Odometro (km)' },
+  { key: 'frontal',    label: 'Estado frontal' },
+  { key: 'lateral_der',label: 'Lateral derecho' },
+  { key: 'lateral_izq',label: 'Lateral izquierdo' },
+  { key: 'posterior',  label: 'Estado posterior' },
+  { key: 'cabina',     label: 'Interior cabina' },
+  { key: 'guantera',   label: 'Documentos en guantera' },
 ];
 
 // ─── Componente principal ──────────────────────────────────────────
 export default function NuevaUnidadPage() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [vehicle, setVehicle] = useState(INITIAL_VEHICLE);
-  const [docs, setDocs] = useState(INITIAL_DOCS);
-  const [photos, setPhotos] = useState({});
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [step, setStep]         = useState(0);
+  const [vehicle, setVehicle]   = useState(INITIAL_VEHICLE);
+  const [docs, setDocs]         = useState(INITIAL_DOCS);
+  const [pdfQueue, setPdfQueue] = useState({}); // { tipo_documento: File }
+  const [photos, setPhotos]     = useState({});
+  const [errors, setErrors]     = useState({});
+  const [loading, setLoading]   = useState(false);
   const [createdId, setCreatedId] = useState(null);
 
   function setV(field, value) {
     setVehicle((p) => ({ ...p, [field]: value }));
     setErrors((p) => ({ ...p, [field]: undefined }));
   }
-
   function setDoc(tipo, field, value) {
     setDocs((p) => ({ ...p, [tipo]: { ...p[tipo], [field]: value } }));
   }
-
+  function queuePdf(tipo, file) {
+    setPdfQueue((p) => ({ ...p, [tipo]: file || null }));
+  }
   function setEquip(item, field, value) {
     setVehicle((p) => ({
       ...p,
       equipamiento: { ...p.equipamiento, [item]: { ...p.equipamiento[item], [field]: value } },
     }));
   }
-
   function setDamage(zona, value) {
-    setVehicle((p) => ({
-      ...p,
-      danos_carroceria: { ...p.danos_carroceria, [zona]: value },
-    }));
+    setVehicle((p) => ({ ...p, danos_carroceria: { ...p.danos_carroceria, [zona]: value } }));
   }
-
   function setLeak(tipo, value) {
-    setVehicle((p) => ({
-      ...p,
-      fugas: { ...p.fugas, [tipo]: value },
-    }));
+    setVehicle((p) => ({ ...p, fugas: { ...p.fugas, [tipo]: value } }));
   }
 
   function validate0() {
     const e = {};
     if (!vehicle.placa.trim()) e.placa = 'La placa es obligatoria';
-    if (!vehicle.tipo) e.tipo = 'Selecciona el tipo de unidad';
-    if (!vehicle.km_actuales) e.km_actuales = 'Los KM actuales son obligatorios';
+    if (!vehicle.tipo)         e.tipo  = 'Selecciona el tipo de unidad';
+    if (!vehicle.km_actuales)  e.km_actuales = 'Los KM actuales son obligatorios';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
   async function handleNext() {
     if (step === 0 && !validate0()) return;
-    if (step === 1) {
-      await saveVehicle();
-      return;
-    }
+    if (step === 1) { await saveVehicle(); return; }
     setStep((s) => s + 1);
   }
 
   async function saveVehicle() {
     setLoading(true);
+
+    // 1. Crear el vehículo con sus datos de documentos
     const documents = Object.values(docs).filter(
       (d) => d.vigente || d.numero || d.fecha_vencimiento || d.aseguradora || d.centro_citv
     );
-
     const res = await fetch('/api/vehicles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...vehicle, documents }),
     });
-
     const data = await res.json();
-    setLoading(false);
 
     if (!res.ok) {
+      setLoading(false);
       setErrors({ general: data.error || 'Error al guardar la unidad' });
       return;
     }
-    setCreatedId(data.id);
+
+    const vehicleId = data.id;
+
+    // 2. Subir PDFs en cola (si los hay)
+    const pendingPdfs = Object.entries(pdfQueue).filter(([, file]) => file);
+    if (pendingPdfs.length > 0) {
+      await Promise.allSettled(
+        pendingPdfs.map(([tipo_documento, file]) => {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('vehicle_id', vehicleId);
+          fd.append('tipo_documento', tipo_documento);
+          return fetch('/api/documents', { method: 'POST', body: fd });
+        })
+      );
+    }
+
+    setLoading(false);
+    setCreatedId(vehicleId);
     setStep(2);
   }
 
@@ -173,7 +173,7 @@ export default function NuevaUnidadPage() {
       <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6">
 
         {step === 0 && <Step0 vehicle={vehicle} setV={setV} errors={errors} />}
-        {step === 1 && <Step1 docs={docs} setDoc={setDoc} vehicle={vehicle} />}
+        {step === 1 && <Step1 docs={docs} setDoc={setDoc} pdfQueue={pdfQueue} queuePdf={queuePdf} />}
         {step === 2 && <Step2 vehicle={vehicle} setEquip={setEquip} setDamage={setDamage} setLeak={setLeak} />}
         {step === 3 && <Step3 photos={photos} createdId={createdId} onUpload={handlePhotoUpload} />}
 
@@ -330,9 +330,14 @@ function Step0({ vehicle, setV, errors }) {
 }
 
 // ─── PASO 1: Documentacion ─────────────────────────────────────────
-function Step1({ docs, setDoc, vehicle }) {
+function Step1({ docs, setDoc, pdfQueue, queuePdf }) {
   return (
     <div className="flex flex-col gap-5">
+
+      <p className="text-xs text-[var(--color-text-muted)]">
+        Completa los datos de cada documento y adjunta el PDF si lo tienes disponible.
+        Los PDFs se suben al guardar este paso.
+      </p>
 
       {/* SOAT */}
       <DocBlock title="A. SOAT — Seguro Obligatorio de Accidentes de Transito">
@@ -355,6 +360,7 @@ function Step1({ docs, setDoc, vehicle }) {
             <Input type="date" value={docs.soat.fecha_vencimiento} onChange={(e) => setDoc('soat', 'fecha_vencimiento', e.target.value)} />
           </FormField>
         </div>
+        <PdfPicker tipo="soat" file={pdfQueue.soat} onFile={queuePdf} />
       </DocBlock>
 
       {/* CITV */}
@@ -385,6 +391,7 @@ function Step1({ docs, setDoc, vehicle }) {
             <Input type="date" value={docs.citv.fecha_vencimiento} onChange={(e) => setDoc('citv', 'fecha_vencimiento', e.target.value)} />
           </FormField>
         </div>
+        <PdfPicker tipo="citv" file={pdfQueue.citv} onFile={queuePdf} />
       </DocBlock>
 
       {/* Tarjeta de Propiedad */}
@@ -414,6 +421,7 @@ function Step1({ docs, setDoc, vehicle }) {
             <Input value={docs.propiedad.numero} onChange={(e) => setDoc('propiedad', 'numero', e.target.value)} placeholder="Numero de documento" />
           </FormField>
         </div>
+        <PdfPicker tipo="propiedad" file={pdfQueue.propiedad} onFile={queuePdf} />
       </DocBlock>
 
       {/* Seguro Vehicular */}
@@ -442,6 +450,55 @@ function Step1({ docs, setDoc, vehicle }) {
             </>
           )}
         </div>
+        {docs.seguro.vigente !== 'no_aplica' && docs.seguro.vigente !== 'no' && (
+          <PdfPicker tipo="seguro" file={pdfQueue.seguro} onFile={queuePdf} />
+        )}
+      </DocBlock>
+
+      {/* Record SAT */}
+      <DocBlock title="E. Record de infracciones — SAT">
+        <p className="text-xs text-[var(--color-text-muted)] -mt-1">
+          Servicio de Administracion Tributaria (infracciones municipales).
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="Estado del record">
+            <Select value={docs.sat.vigente} onChange={(e) => setDoc('sat', 'vigente', e.target.value)}>
+              <option value="">Seleccionar...</option>
+              <option value="si">Sin deudas</option>
+              <option value="no">Con deudas pendientes</option>
+            </Select>
+          </FormField>
+          <FormField label="Fecha del reporte">
+            <Input type="date" value={docs.sat.fecha_vencimiento} onChange={(e) => setDoc('sat', 'fecha_vencimiento', e.target.value)} />
+          </FormField>
+          <FormField label="N° de referencia (opcional)">
+            <Input value={docs.sat.numero} onChange={(e) => setDoc('sat', 'numero', e.target.value)} placeholder="Codigo o referencia" />
+          </FormField>
+        </div>
+        <PdfPicker tipo="sat" file={pdfQueue.sat} onFile={queuePdf} label="Adjuntar reporte SAT (PDF)" />
+      </DocBlock>
+
+      {/* Record SUTRAN */}
+      <DocBlock title="F. Record de infracciones — SUTRAN">
+        <p className="text-xs text-[var(--color-text-muted)] -mt-1">
+          Superintendencia de Transporte Terrestre de Personas, Carga y Mercancias.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="Estado del record">
+            <Select value={docs.sutran.vigente} onChange={(e) => setDoc('sutran', 'vigente', e.target.value)}>
+              <option value="">Seleccionar...</option>
+              <option value="si">Sin infracciones</option>
+              <option value="no">Con infracciones pendientes</option>
+            </Select>
+          </FormField>
+          <FormField label="Fecha del reporte">
+            <Input type="date" value={docs.sutran.fecha_vencimiento} onChange={(e) => setDoc('sutran', 'fecha_vencimiento', e.target.value)} />
+          </FormField>
+          <FormField label="N° de referencia (opcional)">
+            <Input value={docs.sutran.numero} onChange={(e) => setDoc('sutran', 'numero', e.target.value)} placeholder="Codigo o referencia" />
+          </FormField>
+        </div>
+        <PdfPicker tipo="sutran" file={pdfQueue.sutran} onFile={queuePdf} label="Adjuntar reporte SUTRAN (PDF)" />
       </DocBlock>
 
     </div>
@@ -481,11 +538,7 @@ function Step2({ vehicle, setEquip, setDamage, setLeak }) {
                   ))}
                 </div>
                 <div className="sm:w-24">
-                  <Select
-                    value={val.estado || ''}
-                    onChange={(e) => setEquip(item, 'estado', e.target.value)}
-                    className="text-xs py-1.5"
-                  >
+                  <Select value={val.estado || ''} onChange={(e) => setEquip(item, 'estado', e.target.value)} className="text-xs py-1.5">
                     <option value="">-</option>
                     <option value="ok">OK</option>
                     <option value="regular">Regular</option>
@@ -503,11 +556,7 @@ function Step2({ vehicle, setEquip, setDamage, setLeak }) {
           {DAMAGE_ZONES.map((zona) => (
             <div key={zona} className="grid grid-cols-[120px_1fr] gap-3 items-center">
               <span className="text-sm font-medium text-[var(--color-text)]">{zona}</span>
-              <Input
-                value={vehicle.danos_carroceria[zona] || ''}
-                onChange={(e) => setDamage(zona, e.target.value)}
-                placeholder="Sin daños visibles"
-              />
+              <Input value={vehicle.danos_carroceria[zona] || ''} onChange={(e) => setDamage(zona, e.target.value)} placeholder="Sin daños visibles" />
             </div>
           ))}
         </div>
@@ -552,13 +601,7 @@ function Step3({ photos, createdId, onUpload }) {
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {PHOTO_SLOTS.map(({ key, label }) => (
-          <PhotoSlot
-            key={key}
-            label={label}
-            preview={photos[key]}
-            disabled={!createdId}
-            onFile={(file) => onUpload(key, file)}
-          />
+          <PhotoSlot key={key} label={label} preview={photos[key]} disabled={!createdId} onFile={(file) => onUpload(key, file)} />
         ))}
       </div>
       {!createdId && (
@@ -574,9 +617,7 @@ function Step3({ photos, createdId, onUpload }) {
 function Section({ title, children }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-3">
-        {title}
-      </p>
+      <p className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-3">{title}</p>
       {children}
     </div>
   );
@@ -587,6 +628,41 @@ function DocBlock({ title, children }) {
     <div className="border border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-4">
       <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
       {children}
+    </div>
+  );
+}
+
+function PdfPicker({ tipo, file, onFile, label = 'Adjuntar PDF (opcional)' }) {
+  return (
+    <div className="flex items-center gap-3 pt-1 border-t border-[var(--color-border)]">
+      <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4 text-red-500 shrink-0" />
+      {file ? (
+        <>
+          <span className="text-xs text-[var(--color-text-secondary)] flex-1 truncate">{file.name}</span>
+          <button
+            type="button"
+            onClick={() => onFile(tipo, null)}
+            className="flex items-center gap-1 text-xs text-red-600 hover:underline shrink-0"
+          >
+            <FontAwesomeIcon icon={faXmark} className="w-3 h-3" />
+            Quitar
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="text-xs text-[var(--color-text-muted)] flex-1">{label}</span>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline cursor-pointer shrink-0">
+            <FontAwesomeIcon icon={faUpload} className="w-3 h-3" />
+            Seleccionar
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => e.target.files[0] && onFile(tipo, e.target.files[0])}
+            />
+          </label>
+        </>
+      )}
     </div>
   );
 }
@@ -607,13 +683,8 @@ function PhotoSlot({ label, preview, disabled, onFile }) {
           )}
         </div>
         {!disabled && (
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => e.target.files[0] && onFile(e.target.files[0])}
-          />
+          <input type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={(e) => e.target.files[0] && onFile(e.target.files[0])} />
         )}
       </label>
     </div>
